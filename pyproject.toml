@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "figure_provenance"
+version = "0.1.0"
+description = "Record beside each saved figure the function, arguments and git commit that produced it."
+authors = [
+  { name = "Juan Manuel Losada", email = "juan.m.losada@uit.no" }
+]
+license = "MIT"
+license-files = ["LICENSE"]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.urls]
+Repository = "https://github.com/Sosnowsky/figure-provenance"
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.0",
+    "matplotlib>=3.5",
+]
+
+[tool.setuptools]
+py-modules = ["figure_provenance"]
