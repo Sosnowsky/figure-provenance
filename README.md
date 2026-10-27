@@ -45,7 +45,7 @@ Paths are relative to the root of the producer's git repository, so an entry in 
 - **The docstring is the purpose.** Keep it short, and say what the figure shows and why it is drawn that way. Update it whenever the figure changes: the manifest copies it on every save and cannot tell if it is stale. `save` warns when there is none.
 - **Always save through `save`.** A figure written with `fig.savefig` directly has no entry.
 - **A project's own `save` wrapper passes `stacklevel=2`.** Without `@provenance`, the entry names the code that called `save`, and the wrapper would otherwise name itself.
-- **Commit, then regenerate.** A non-empty `uncommitted` means the code that ran was `commit` plus those changes, which cannot be recovered once they are reverted.
+- **Commit, then regenerate.** A non-empty `uncommitted` means the code that ran was `commit` plus those changes, which cannot be recovered once they are reverted. The folder's own manifest and the figures it records are left out, since regenerating a committed figure folder rewrites them.
 - **Arguments** appear as their `repr` when that is short plain data, and as their type (and shape) otherwise. `called_from` shows where they were built.
 
 ## Install
