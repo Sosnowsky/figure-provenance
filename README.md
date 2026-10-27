@@ -59,3 +59,27 @@ pip install -e "figure-provenance[test]" && pytest figure-provenance
 ```
 
 No dependencies. Python 3.10 or later, and git on the path for the repository fields.
+
+## Julia
+
+The `julia/` folder holds `FigureProvenance`, which writes the same `provenance.json`, so Python and Julia can save into one folder. The docstring goes above the macro, and `save` is called qualified, since Makie and Plots export their own:
+
+```julia
+using CairoMakie, FigureProvenance
+
+"The maximum in space against the lag, one pixel a panel, with the fitted velocity."
+@provenance function fig_tracks(ds, pixels; comp=:vr)
+    fig = Figure()
+    ...
+    return fig
+end
+
+FigureProvenance.save(fig_tracks(ds, [(4, 6), (5, 6)]), "figures/tracks.pdf")
+```
+
+Makie and Plots figures are written by package extensions that load with those packages; add a `FigureProvenance.write_figure(fig, path)` method for any other kind. Differences from Python: `call` lists every argument, defaults included, and `command` is read from `/proc/self/cmdline` (on other systems, `julia` with the script and its arguments).
+
+```bash
+julia --project=. -e 'using Pkg; Pkg.develop(path="../figure-provenance/julia")'  # from a project beside this repository
+julia --project=julia -e 'using Pkg; Pkg.test()'                                   # the tests
+```
