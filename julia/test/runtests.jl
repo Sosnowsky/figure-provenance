@@ -175,3 +175,39 @@ end
         @test e["remote"] === nothing
     end
 end
+
+@testset "outputs are not uncommitted" begin
+    # regenerating a committed figure folder: its figures and manifest are outputs, not code
+    mktempdir() do tmp
+        repo = joinpath(tmp, "repo")
+        mkdir(repo)
+        write(joinpath(repo, "mod.jl"), """
+            using FigureProvenance
+            mutable struct H
+                s::String
+            end
+            FigureProvenance.write_figure(h::H, path) = write(path, h.s)
+
+            "In a repository."
+            @provenance fig(s) = H(s)
+            """)
+        write(joinpath(repo, "other.txt"), "a\n")
+        git(args...) = run(pipeline(`git -C $repo -c user.name=t -c user.email=t@t -c init.defaultBranch=main $args`; stdout=devnull))
+        git("init")
+        mod = Module(:Outputs)
+        Base.include(mod, joinpath(repo, "mod.jl"))
+        figs = joinpath(repo, "figs")
+        save_both(s) = Base.invokelatest() do
+            FigureProvenance.save(mod.fig(s), joinpath(figs, "a.png"))
+            FigureProvenance.save(mod.fig(s), joinpath(figs, "b.png"))
+        end
+        save_both("1")
+        git("add", ".")
+        git("commit", "-m", "first")
+        write(joinpath(repo, "other.txt"), "b\n")
+        save_both("2")  # the figures themselves change
+        figures = read_manifest(figs)["figures"]
+        @test figures["a.png"]["uncommitted"] == ["other.txt"]
+        @test figures["b.png"]["uncommitted"] == ["other.txt"]
+    end
+end

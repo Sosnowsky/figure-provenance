@@ -109,3 +109,37 @@ def test_git(tmp_path):
     assert e["commit"] == head.strip()
     assert e["uncommitted"] == ["other.txt"]
     assert e["remote"] is None
+
+
+def test_outputs_are_not_uncommitted(tmp_path):
+    """Regenerating a committed figure folder: its figures and manifest are outputs, not code."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "mod.py").write_text(
+        "import matplotlib.pyplot as plt\n"
+        "import figure_provenance as fp\n\n"
+        "@fp.provenance\n"
+        "def fig():\n"
+        '    """In a repository."""\n'
+        "    return plt.figure()\n"
+    )
+    (repo / "other.txt").write_text("a\n")
+
+    def git(*args):
+        subprocess.run(["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@t", *args],
+                       check=True, capture_output=True)
+
+    spec = importlib.util.spec_from_file_location("mod2", repo / "mod.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    git("init")
+    fp.save(mod.fig(), repo / "figs" / "a.png")
+    fp.save(mod.fig(), repo / "figs" / "b.png")
+    git("add", ".")
+    git("commit", "-m", "first")
+    (repo / "other.txt").write_text("b\n")
+    fp.save(mod.fig(), repo / "figs" / "a.png", dpi=50)  # the figure itself changes
+    fp.save(mod.fig(), repo / "figs" / "b.png", dpi=50)
+    figures = read(repo / "figs")["figures"]
+    assert figures["a.png"]["uncommitted"] == ["other.txt"]
+    assert figures["b.png"]["uncommitted"] == ["other.txt"]

@@ -33,7 +33,8 @@ const ABOUT = string(
     "Written by the figure_provenance package (https://github.com/Sosnowsky/figure-provenance) each time ",
     "a figure in this folder is saved, one entry per ",
     "file. 'producer' is the function that drew it, a path inside the git repository 'repo' (remote ",
-    "'remote') at 'commit'; 'uncommitted' lists the files that differed from that commit when it ran. ",
+    "'remote') at 'commit'; 'uncommitted' lists the files that differed from that commit when it ran, ",
+    "other than this file and the figures it records. ",
     "'call' gives its arguments, 'called_from' the line that called it, 'command' what was run, from ",
     "'cwd'. 'purpose' is the producer's docstring. To change a figure, edit the producer and its ",
     "docstring and rerun it: an edit to the file itself is lost on the next run.",
@@ -115,7 +116,7 @@ rather than the wrapper.
         doc = name === nothing ? nothing : _docstring(mod, Symbol(name))
         made = (; file=string(frame.file), name, doc, call=nothing, caller=frame)
     end
-    entry = _entry(made)
+    entry = _entry(made, path)
     if entry["purpose"] === nothing
         @warn "$(entry["producer"]) has no docstring: $MANIFEST will not say what $(basename(path)) is for"
     end
@@ -170,7 +171,7 @@ function _caller(name::Symbol)
     return j === nothing ? nothing : frames[j]
 end
 
-function _entry(made)
+function _entry(made, path)
     root = _root(made.file)
     producer = _rel(made.file, root) * (made.name === nothing ? "" : ":$(made.name)")
     caller = made.caller
@@ -185,7 +186,8 @@ function _entry(made)
     )
     if root !== nothing
         status = something(_git(root, "status", "--porcelain", "--untracked-files=no"), "")
-        uncommitted = [line[4:end] for line in split(status, '\n') if !isempty(strip(line))]
+        outputs = _outputs(path, root)
+        uncommitted = [line[4:end] for line in split(status, '\n') if !isempty(strip(line)) && line[4:end] ∉ outputs]
         rel = _rel(made.file, root)
         if _git(root, "ls-files", "--error-unmatch", "--", rel) === nothing
             push!(uncommitted, "$rel (untracked)")
@@ -199,6 +201,20 @@ function _entry(made)
     end
     entry["purpose"] = made.doc
     return entry
+end
+
+"""The manifest beside `path` and the figures it records, as git names them: outputs, not code."""
+function _outputs(path, root)
+    folder = dirname(abspath(path))
+    names = Set([MANIFEST, basename(path)])
+    manifest = joinpath(folder, MANIFEST)
+    if isfile(manifest)
+        try
+            union!(names, keys(get(JSON.parse(read(manifest, String)), "figures", Dict())))
+        catch  # not valid JSON: _record says so
+        end
+    end
+    return Set(_rel(joinpath(folder, name), root) for name in names)
 end
 
 """The command line that started this process, as it would be typed."""

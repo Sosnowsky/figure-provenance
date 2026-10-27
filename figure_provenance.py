@@ -44,7 +44,8 @@ ABOUT = (
     "Written by the figure_provenance package (https://github.com/Sosnowsky/figure-provenance) each time "
     "a figure in this folder is saved, one entry per "
     "file. 'producer' is the function that drew it, a path inside the git repository 'repo' (remote "
-    "'remote') at 'commit'; 'uncommitted' lists the files that differed from that commit when it ran. "
+    "'remote') at 'commit'; 'uncommitted' lists the files that differed from that commit when it ran, "
+    "other than this file and the figures it records. "
     "'call' gives its arguments, 'called_from' the line that called it, 'command' what was run, from "
     "'cwd'. 'purpose' is the producer's docstring. To change a figure, edit the producer and its "
     "docstring and rerun it: an edit to the file itself is lost on the next run."
@@ -99,7 +100,7 @@ def save(fig, path, *, stacklevel=1, **kwargs):
             "call": None,
             "caller": (frame.f_code.co_filename, frame.f_lineno, name),
         }
-    entry = _entry(made)
+    entry = _entry(made, path)
     if not entry["purpose"]:
         warnings.warn(f"{entry['producer']} has no docstring: {MANIFEST} will not say what {path.name} is for",
                       stacklevel=stacklevel + 1)
@@ -118,7 +119,7 @@ def _doc(frame):
     return None  # a method or a nested function: decorate it to have its docstring
 
 
-def _entry(made):
+def _entry(made, path):
     root = _root(made["file"])
     producer = _rel(made["file"], root) + (f":{made['name']}" if made["name"] else "")
     file, line, name = made["caller"]
@@ -132,7 +133,8 @@ def _entry(made):
     }
     if root is not None:
         status = _git(root, "status", "--porcelain", "--untracked-files=no") or ""
-        uncommitted = [line[3:] for line in status.splitlines() if line.strip()]
+        outputs = _outputs(path, root)
+        uncommitted = [line[3:] for line in status.splitlines() if line.strip() and line[3:] not in outputs]
         rel = _rel(made["file"], root)
         if _git(root, "ls-files", "--error-unmatch", "--", rel) is None:
             uncommitted.append(f"{rel} (untracked)")
@@ -144,6 +146,17 @@ def _entry(made):
         )
     entry["purpose"] = made["doc"]
     return entry
+
+
+def _outputs(path, root):
+    """The manifest beside ``path`` and the figures it records, as git names them: outputs, not code."""
+    folder = Path(path).resolve().parent
+    names = {MANIFEST, Path(path).name}
+    try:
+        names |= set(json.loads((folder / MANIFEST).read_text(encoding="utf-8")).get("figures", {}))
+    except (OSError, ValueError, AttributeError):
+        pass
+    return {_rel(folder / name, root) for name in names}
 
 
 def _record(path, entry):
